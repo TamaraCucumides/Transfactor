@@ -92,14 +92,13 @@ class BlockTabularData:
 
 if __name__ == "__main__":
 
-
     df = pd.DataFrame([
         ["A", "B", "X", "Y"],  
         ["A", "B", "B", "Y"],  
         ["A", "B", "B", "Z"],  
     ], columns=["c1", "c2", "c3", "c4"])
 
-    # Define one block: c1 and c2 must be A and respectively
+    # Define one block: c1 and c2 must be A and B respectively
     block_definitions = [
         {"block_id": 0, "columns": ["c1", "c2"], "values": ["A", "B"]}
     ]
