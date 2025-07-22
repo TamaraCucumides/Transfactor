@@ -22,7 +22,7 @@ df = pd.DataFrame([
 
 target = pd.Series(["yes", "no", "yes", "yes", "no"])
 
-# === 2. Encode features and labels ===
+# Encode features and labels 
 label_encoders = {}
 for col in df.columns:
     le = LabelEncoder()
@@ -36,7 +36,7 @@ target_labels = target_le.fit_transform(target)
 vocab, _ = build_vocab_from_df(df)
 
 # === 4. Define blocks and encode them ===
-raw_block_defs = [{"block_id": 0, "columns": ["c1", "c2"], "values": ["A", "A"]}]
+raw_block_defs = [{"block_id": 0, "columns": ["c1", "c2"], "values": ["A", "B"],}]
 block_defs = encode_block_definitions(raw_block_defs, label_encoders)
 
 # === 5. Dataset and DataLoader ===
@@ -60,7 +60,7 @@ dataloader = DataLoader(
 )
 
 
-# === 6. Model, optimizer, loss ===
+# Model, optimizer, loss
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model = Transfactor(

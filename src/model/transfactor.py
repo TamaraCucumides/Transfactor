@@ -19,7 +19,7 @@ class Transfactor(nn.Module):
 
         self.vocab_size = vocab_size
         self.num_blocks = num_blocks
-        self.null_block_id = num_blocks  # Use this for singleton/unknown tokens
+        self.null_block_id = num_blocks  # singleton/unknown tokens
 
         self.token_embedding = nn.Embedding(vocab_size, d_model)
         self.block_id_embedding = nn.Embedding(num_blocks + 1, d_model)  # +1 for null block
