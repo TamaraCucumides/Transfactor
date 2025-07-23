@@ -1,0 +1,145 @@
+#train_transfactor.py
+
+from model.transfactor import Transfactor
+from core.data import BlockTabularData
+from core.dataset import BlockTabularDataset
+from core.utils import build_vocab_from_df, encode_block_definitions, collate_fn_pad
+from core.block_finding import fast_blocks_numpy
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+
+# === Utility Functions ===
+
+def encode_dataframe(df, existing_encoders=None):
+    label_encoders = existing_encoders or {}
+    for col in df.columns:
+        le = label_encoders.get(col, LabelEncoder())
+        df[col] = le.fit_transform(df[col]) if existing_encoders is None else le.transform(df[col])
+        label_encoders[col] = le
+    return df, label_encoders
+
+def encode_target(target, existing_encoder=None):
+    le = existing_encoder or LabelEncoder()
+    labels = le.fit_transform(target) if existing_encoder is None else le.transform(target)
+    return labels, le
+
+def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
+    vocab, _ = build_vocab_from_df(df)
+    block_defs = encode_block_definitions(raw_block_defs, label_encoders)
+    return vocab, block_defs
+
+def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id=-1):
+    block_data = BlockTabularData(df, block_defs)
+    dataset = BlockTabularDataset(
+        data=block_data,
+        labels=labels,
+        vocab=vocab,
+        pad_token_id=pad_token_id,
+        null_block_id=null_block_id
+    )
+    return dataset
+
+def create_dataloader(dataset, batch_size, pad_token_id, pad_block_id):
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        collate_fn=lambda batch: collate_fn_pad(batch, pad_token_id=pad_token_id, pad_block_id=pad_block_id)
+    )
+
+def train_model(model, dataloader, criterion, optimizer, device, label="Train", train=True):
+    if train:
+        model.train()
+    else:
+        model.eval()
+
+    total_loss, correct, total = 0.0, 0, 0
+    with torch.set_grad_enabled(train):
+        for batch in dataloader:
+            token_ids = batch["tokens"].to(device)
+            block_ids = batch["block_ids"].to(device)
+            mask = batch["attention_mask"].to(device)
+            labels = batch["labels"].to(device)
+
+            if train:
+                optimizer.zero_grad()
+
+            logits = model(token_ids, block_ids, mask)
+            loss = criterion(logits, labels)
+
+            if train:
+                loss.backward()
+                optimizer.step()
+
+            total_loss += loss.item() * labels.size(0)
+            preds = torch.argmax(logits, dim=1)
+            correct += (preds == labels).sum().item()
+            total += labels.size(0)
+
+    acc = correct / total
+    avg_loss = total_loss / total
+    print(f"[{label}] Loss={avg_loss:.4f}, Accuracy={acc:.4f}")
+
+def test_model(model, dataloader, criterion, device):
+    train_model(model, dataloader, criterion, optimizer=None, device=device, label="Test", train=False)
+
+
+# Main
+
+def run_pipeline(df, target, min_support=10, max_cols=3, batch_size=2, epochs=10):
+    # Split data
+    df_train, df_test, target_train, target_test = train_test_split(
+        df, target, test_size=0.2, random_state=42, stratify=target
+    )
+
+    # Block mining on training data
+    raw_block_defs = fast_blocks_numpy(df_train, min_support=min_support, max_cols=max_cols)
+
+    # Encode
+    df_train_encoded, label_encoders = encode_dataframe(df_train)
+    df_test_encoded, _ = encode_dataframe(df_test, existing_encoders=label_encoders)
+
+    target_labels_train, target_le = encode_target(target_train)
+    target_labels_test, _ = encode_target(target_test, existing_encoder=target_le)
+
+    # Vocab and block definitions
+    vocab, block_defs = prepare_vocab_and_blocks(df_train_encoded, raw_block_defs, label_encoders)
+
+    # Dataset and Dataloader
+    dataset_train = prepare_dataset(df_train_encoded, block_defs, target_labels_train, vocab)
+    dataset_test = prepare_dataset(df_test_encoded, block_defs, target_labels_test, vocab)
+
+    num_blocks = len(raw_block_defs)
+    pad_block_id = num_blocks
+
+    dataloader_train = create_dataloader(dataset_train, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
+    dataloader_test = create_dataloader(dataset_test, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
+
+    # Model setup
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = Transfactor(
+        vocab_size=max(v for col in vocab.values() for v in col.values()) + 1,
+        num_blocks=num_blocks,
+        d_model=32,
+        nhead=4,
+        num_layers=2,
+        num_classes=len(set(target_labels_train)),
+        max_seq_len=100
+    ).to(device)
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+    # Training loop
+    for epoch in range(epochs):
+        print(f"\nEpoch {epoch+1}")
+        train_model(model, dataloader_train, criterion, optimizer, device, label="Train")
+        test_model(model, dataloader_test, criterion, device)
+
+    return model, label_encoders, target_le, vocab
+
