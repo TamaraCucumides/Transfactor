@@ -47,36 +47,31 @@ class BlockTabularData:
 
     def get_token_sequence(self, row_idx: int) -> List[Union[Any, List[Any]]]:
         """
-        Return a list of tokens for the given row:
-        TODO: check if this is what we want
-        - A token can be a single value (e.g., 5, "X")
-        - Or a list of values for a matched block (e.g., [1, 2, 3]) 
+        Returns the token sequence for a given row.
+        Instead of collapsing block columns into one token, we replicate
+        the same block token at each column position it covers.
         """
         row = self.df.iloc[row_idx]
-        blocks = self.row_blocks[row_idx]
-        block_column_map = {}  # col -> block_id
+        token_seq = [None] * len(self.column_names)  # placeholder list
 
-        for cols, block_id in blocks:
-            for col in cols:
-                block_column_map[col] = block_id
+        # Identify which blocks apply to this row
+        applicable_blocks = self.row_blocks[row_idx]  # List of (cols, block_id)
 
         used_columns = set()
-        token_sequence = []
 
-        for col in self.column_names:
-            if col in used_columns:
-                continue
-            if col in block_column_map:
-                block_id = block_column_map[col]
-                block_cols = [c for c in self.column_names if block_column_map.get(c) == block_id]
-                block_values = [row[c] for c in block_cols]
-                token_sequence.append(block_values)
-                used_columns.update(block_cols)
-            else:
-                token_sequence.append(row[col])
+        for cols, block_id in applicable_blocks:
+            block_values = [row[col] for col in cols]
+            for col in cols:
+                idx = self.column_names.index(col)
+                token_seq[idx] = ("BLOCK", tuple(block_values), block_id)
                 used_columns.add(col)
 
-        return token_sequence
+        # Fill in singleton (non-block) columns
+        for i, col in enumerate(self.column_names):
+            if token_seq[i] is None:
+                token_seq[i] = row[col]
+
+        return token_seq
 
     def get_row_block_ids(self, row_idx: int) -> List[int]:
         """Returns the block IDs that apply to a given row."""

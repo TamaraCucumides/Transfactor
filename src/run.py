@@ -1,22 +1,27 @@
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from model.transfactor import Transfactor
-from data import BlockTabularData
-from dataset import BlockTabularDataset
-from utils import build_vocab_from_df, encode_block_definitions, collate_fn_pad
+from core.data import BlockTabularData
+from core.dataset import BlockTabularDataset
+from core.utils import build_vocab_from_df, encode_block_definitions, collate_fn_pad
 
 from sklearn.preprocessing import LabelEncoder
 import pandas as pd
 
 # === 1. Create toy data ===
 df = pd.DataFrame([
-    ["A", "A", "X", "Y"],
-    ["A", "A", "B", "Y"],
+    ["A", "B", "X", "Y"],
+    ["A", "B", "B", "Y"],
     ["C", "D", "B", "Z"],
-    ["A", "A", "X", "Y"],
+    ["A", "B", "X", "Y"],
     ["C", "D", "X", "Z"],
 ], columns=["c1", "c2", "c3", "c4"])
 
