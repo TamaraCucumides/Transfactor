@@ -128,7 +128,9 @@ def train_model(model, dataloader, criterion, optimizer, device, label="Train", 
 
             if train:
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
+                
 
             total_loss += loss.item() * labels.size(0)
             preds = torch.argmax(logits, dim=1)
@@ -192,7 +194,7 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
     ).to(device)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
     # Training loop
     for epoch in range(epochs):
