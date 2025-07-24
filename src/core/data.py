@@ -65,35 +65,37 @@ class BlockTabularData:
         row = self.df.iloc[row_idx]
         token_seq = [None] * len(self.column_names)  # placeholder list
 
-        # Identify which blocks apply to this row
         applicable_blocks = self.row_blocks[row_idx]  # List of (cols, block_id)
-
         used_columns = set()
+
+        print(f"\n[DEBUG] Row {row_idx} raw: {row.to_dict()}")  # Add this
 
         for cols, block_id in applicable_blocks:
             try:
-                block_values = [
-                    val[0] if isinstance(val := row[col], pd.Index) else val
-                    for col in cols
-                ]
-            except Exception as e:
-                print(f"[get_token_sequence] Error extracting block values at row {row_idx}, block {block_id}: {e}")
-                block_values = [None] * len(cols)
+                block_values = []
+                for col in cols:
+                    val = row[col]
+                    if isinstance(val, pd.Index):
+                        print(f"[BUG] row[{col}] is a Pandas Index: {val}")
+                        val = val.item()
+                    block_values.append(val)
 
-            for col in cols:
-                try:
+                for col in cols:
                     idx = self.column_names.index(col)
                     token_seq[idx] = ("BLOCK", tuple(block_values), tuple(cols), block_id)
-                except Exception as e:
-                    print(f"[get_token_sequence] Error assigning block token for column {col}: {e}")
-                used_columns.add(col)
+                    used_columns.add(col)
 
-        # Fill in singleton (non-block) columns
+                print(f"[DEBUG] Block assigned at row {row_idx}: {block_id}, cols={cols}, values={block_values}")
+            except Exception as e:
+                print(f"[ERROR] in get_token_sequence row {row_idx}, block {block_id}: {e}")
+                raise
+
         for i, col in enumerate(self.column_names):
             if token_seq[i] is None:
                 token_seq[i] = row[col]
 
         return token_seq
+
 
 
     def get_row_block_ids(self, row_idx: int) -> List[int]:
