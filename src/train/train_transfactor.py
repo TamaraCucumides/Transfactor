@@ -1,5 +1,3 @@
-#train_transfactor.py
-
 from model.transfactor import Transfactor
 from core.data import BlockTabularData
 from core.dataset import BlockTabularDataset
@@ -12,7 +10,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import pandas as pd
-from collections import defaultdict
+import copy
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
@@ -30,7 +28,6 @@ def encode_dataframe(df, existing_encoders=None):
 
     return df, label_encoders
 
-
 def encode_target(target, existing_encoder=None):
     le = existing_encoder or LabelEncoder()
     labels = le.fit_transform(target) if existing_encoder is None else le.transform(target)
@@ -38,58 +35,34 @@ def encode_target(target, existing_encoder=None):
 
 def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
     encoded_blocks = []
-    #print(f"[DEBUG] Columns in df: {list(df.columns)}")
-    #print(f"[DEBUG] Number of raw blocks: {len(raw_block_defs)}")
 
     for block in raw_block_defs:
         cols = block["columns"]
         raw_vals = block["values"]
-        #print(f"\n[DEBUG] Processing block_id={block['block_id']}, cols={cols}, raw_vals={raw_vals}")
 
-        # Skip blocks where any column is missing from encoders
         if not all(col in label_encoders for col in cols):
-            #print(f"[SKIP] Missing label encoder for some columns: {cols}")
             continue
 
         try:
-            encoded_vals = []
-            for col, val in zip(cols, raw_vals):
-                le = label_encoders[col]
-                #print(f"[ENCODING] Column={col}, Value={val}, Classes={le.classes_}")
-                encoded_val = le.transform([val])[0]  # this may throw
-                encoded_vals.append(encoded_val)
-
+            encoded_vals = [label_encoders[col].transform([val])[0] for col, val in zip(cols, raw_vals)]
             encoded_blocks.append({
                 "block_id": block["block_id"],
                 "columns": cols,
                 "values": encoded_vals
             })
-            #print(f"[OK] Encoded block {block['block_id']} → {encoded_vals}")
-
         except Exception as e:
             print(f"[ERROR] Failed to encode block {block['block_id']} with values {raw_vals}: {e}")
-            continue  # Skip bad block
+            continue
 
     if not encoded_blocks:
         raise ValueError("No valid blocks remaining after filtering and encoding.")
 
     vocab = build_vocab_from_label_encoders(label_encoders, restrict_to_cols=df.columns)
-    #print(f"[INFO] Vocab built with {len(vocab)} columns")
-
     return vocab, encoded_blocks
 
-
 def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id=-1):
-    encoded_cols = vocab.keys()
-    #print(f"[prepare_dataset] Using encoded columns: {list(encoded_cols)}")
-    #print(f"[prepare_dataset] First row:\n{df.iloc[0]}")
-    #print(f"[prepare_dataset] Creating BlockTabularData...")
-    
-    df = df[list(encoded_cols)].copy()
+    df = df[list(vocab.keys())].copy()
     block_data = BlockTabularData(df, block_defs)
-
-    #print(f"[prepare_dataset] BlockTabularData done. Creating dataset...")
-
     dataset = BlockTabularDataset(
         data=block_data,
         labels=labels,
@@ -97,8 +70,6 @@ def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id
         pad_token_id=pad_token_id,
         null_block_id=null_block_id
     )
-    #print(f"[prepare_dataset] Dataset done. Length: {len(dataset)}")
-
     return dataset
 
 def create_dataloader(dataset, batch_size, pad_token_id, pad_block_id):
@@ -110,12 +81,9 @@ def create_dataloader(dataset, batch_size, pad_token_id, pad_block_id):
     )
 
 def train_model(model, dataloader, criterion, optimizer, device, label="Train", train=True):
-    if train:
-        model.train()
-    else:
-        model.eval()
-
+    model.train() if train else model.eval()
     total_loss, correct, total = 0.0, 0, 0
+
     with torch.set_grad_enabled(train):
         for batch in dataloader:
             token_ids = batch["tokens"].to(device)
@@ -133,22 +101,21 @@ def train_model(model, dataloader, criterion, optimizer, device, label="Train", 
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
-                
 
             total_loss += loss.item() * labels.size(0)
             preds = torch.argmax(logits, dim=1)
             correct += (preds == labels).sum().item()
             total += labels.size(0)
 
-    acc = correct / total
     avg_loss = total_loss / total
+    acc = correct / total
     print(f"[{label}] Loss={avg_loss:.4f}, Accuracy={acc:.4f}")
+    return avg_loss, acc
 
 def test_model(model, dataloader, criterion, device):
-    train_model(model, dataloader, criterion, optimizer=None, device=device, label="Test", train=False)
+    return train_model(model, dataloader, criterion, optimizer=None, device=device, label="Test", train=False)
 
-
-# Main
+# === Main Pipeline ===
 
 def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_test,
                  min_support=10, max_cols=3, batch_size=2, epochs=10):
@@ -166,7 +133,6 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
 
     vocab, block_defs = prepare_vocab_and_blocks(df_train_encoded, raw_block_defs, label_encoders)
     print(f"[INFO] Encoded {len(block_defs)} valid blocks")
-    #print(f"[DEBUG] Vocab keys: {list(vocab.keys())}")
 
     dataset_train = prepare_dataset(df_train_encoded, block_defs, target_labels_train, vocab)
     dataset_val = prepare_dataset(df_val_encoded, block_defs, target_labels_val, vocab)
@@ -183,7 +149,6 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
 
     print("[STEP] Initializing model")
     vocab_size = max(v for col in vocab.values() for v in col.values()) + 1
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = Transfactor(
@@ -196,16 +161,29 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
         max_seq_len=100
     ).to(device)
 
-
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-    for epoch in range(epochs):
-        print(f"\nEpoch {epoch+1}")
-        train_model(model, dataloader_train, criterion, optimizer, device=model.device, label="Train")
-        test_model(model, dataloader_val, criterion, device=model.device)
+    best_state = None
+    best_val_loss = float("inf")
+    best_epoch = -1
 
-    test_model(model, dataloader_test, criterion, device=model.device)
+    for epoch in range(epochs):
+        print(f"\nEpoch {epoch + 1}")
+        train_model(model, dataloader_train, criterion, optimizer, device=device, label="Train", train=True)
+        val_loss, val_acc = train_model(model, dataloader_val, criterion, optimizer=None, device=device, label="Val", train=False)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_epoch = epoch
+            best_state = copy.deepcopy(model.state_dict())
+            print(f"[BEST] New best model at epoch {epoch+1} with val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+        print(f"[INFO] Loaded best model from epoch {best_epoch + 1}")
+
+    print("\nFinal evaluation on test set:")
+    test_model(model, dataloader_test, criterion, device=device)
 
     return model, label_encoders, target_le, vocab
-
