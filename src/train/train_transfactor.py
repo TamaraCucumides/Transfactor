@@ -55,7 +55,7 @@ def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
             encoded_vals = []
             for col, val in zip(cols, raw_vals):
                 le = label_encoders[col]
-                print(f"[ENCODING] Column={col}, Value={val}, Classes={le.classes_}")
+                #print(f"[ENCODING] Column={col}, Value={val}, Classes={le.classes_}")
                 encoded_val = le.transform([val])[0]  # this may throw
                 encoded_vals.append(encoded_val)
 
@@ -153,39 +153,27 @@ def test_model(model, dataloader, criterion, device):
 def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_test,
                  min_support=10, max_cols=3, batch_size=2, epochs=10):
 
-    print("[STEP] Starting block mining")
     raw_block_defs = fast_blocks_numpy(df_train, min_support=min_support, max_cols=max_cols)
     print(f"[INFO] Finished block mining with {len(raw_block_defs)} blocks")
-    print("Blocks:", raw_block_defs)
 
-    print("[STEP] Encoding training features")
     df_train_encoded, label_encoders = encode_dataframe(df_train)
-    print("[STEP] Encoding validation features")
     df_val_encoded, _ = encode_dataframe(df_val, existing_encoders=label_encoders)
-    print("[STEP] Encoding test features")
     df_test_encoded, _ = encode_dataframe(df_test, existing_encoders=label_encoders)
 
-    print("[STEP] Encoding targets")
     target_labels_train, target_le = encode_target(target_train)
     target_labels_val, _ = encode_target(target_val, existing_encoder=target_le)
     target_labels_test, _ = encode_target(target_test, existing_encoder=target_le)
 
-    print("[STEP] Preparing vocab and encoded blocks")
     vocab, block_defs = prepare_vocab_and_blocks(df_train_encoded, raw_block_defs, label_encoders)
     print(f"[INFO] Encoded {len(block_defs)} valid blocks")
     #print(f"[DEBUG] Vocab keys: {list(vocab.keys())}")
 
-    print("[STEP] Creating datasets")
     dataset_train = prepare_dataset(df_train_encoded, block_defs, target_labels_train, vocab)
-    print("[INFO] Training dataset created")
     dataset_val = prepare_dataset(df_val_encoded, block_defs, target_labels_val, vocab)
-    print("[INFO] Validation dataset created")
     dataset_test = prepare_dataset(df_test_encoded, block_defs, target_labels_test, vocab)
-    print("[INFO] Test dataset created")
 
     num_blocks = len(block_defs)
     pad_block_id = num_blocks
-    print(f"[INFO] Number of blocks: {num_blocks}, pad_block_id: {pad_block_id}")
 
     print("[STEP] Creating dataloaders")
     dataloader_train = create_dataloader(dataset_train, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
@@ -195,7 +183,6 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
 
     print("[STEP] Initializing model")
     vocab_size = max(v for col in vocab.values() for v in col.values()) + 1
-    #print(f"[DEBUG] Vocab size: {vocab_size}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -209,18 +196,15 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
         max_seq_len=100
     ).to(device)
 
-    print("[INFO] Model initialized")
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-    print("[STEP] Starting training")
     for epoch in range(epochs):
         print(f"\nEpoch {epoch+1}")
         train_model(model, dataloader_train, criterion, optimizer, device=model.device, label="Train")
         test_model(model, dataloader_val, criterion, device=model.device)
 
-    print("\n[STEP] Final evaluation on test set")
     test_model(model, dataloader_test, criterion, device=model.device)
 
     return model, label_encoders, target_le, vocab
