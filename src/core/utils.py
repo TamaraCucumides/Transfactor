@@ -70,3 +70,40 @@ def encode_block_definitions(raw_block_defs, label_encoders):
 
     return encoded_defs
 
+
+class SafeLabelEncoder:
+    def __init__(self, unk_token="__UNK__"):
+        self.le = LabelEncoder()
+        self.unk_token = unk_token
+        self.classes_ = None
+
+    def fit(self, values):
+        unique_vals = list(set(values))
+        if self.unk_token in unique_vals:
+            raise ValueError(f"Unknown token '{self.unk_token}' appears in data. Choose a different one.")
+        values_with_unk = unique_vals + [self.unk_token]
+        self.le.fit(values_with_unk)
+        self.classes_ = set(self.le.classes_)
+        return self
+
+    def transform(self, values):
+        safe_values = [
+            val if val in self.classes_ else self.unk_token
+            for val in values
+        ]
+        return self.le.transform(safe_values)
+
+    def fit_transform(self, values):
+        return self.fit(values).transform(values)
+
+    def inverse_transform(self, values):
+        return self.le.inverse_transform(values)
+
+    def get_classes(self):
+        return self.le.classes_
+
+    @property
+    def unk_index(self):
+        return self.le.transform([self.unk_token])[0]
+
+

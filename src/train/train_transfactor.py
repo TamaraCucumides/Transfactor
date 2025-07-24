@@ -5,6 +5,7 @@ from core.data import BlockTabularData
 from core.dataset import BlockTabularDataset
 from core.utils import build_vocab_from_df, encode_block_definitions, collate_fn_pad
 from core.block_finding import fast_blocks_numpy
+from core.utils import SafeLabelEncoder
 
 import torch
 import torch.nn as nn
@@ -17,30 +18,23 @@ from sklearn.preprocessing import LabelEncoder
 # === Utility Functions ===
 
 def encode_dataframe(df, existing_encoders=None):
-    label_encoders = existing_encoders or {}
     df = df.copy()
+    label_encoders = existing_encoders or {}
 
     for col in df.columns:
-        # Skip numeric columns (int/float)
         if pd.api.types.is_numeric_dtype(df[col]):
-            continue
+            continue  # skip numeric columns
 
         if col in label_encoders:
             le = label_encoders[col]
-            try:
-                df[col] = le.transform(df[col])
-            except ValueError as e:
-                unseen = set(df[col].unique()) - set(le.classes_)
-                raise ValueError(
-                    f"Unseen label(s) in column '{col}': {unseen}. "
-                    f"Known classes: {list(le.classes_)}"
-                )
+            df[col] = le.transform(df[col])
         else:
-            le = LabelEncoder()
+            le = SafeLabelEncoder()
             df[col] = le.fit_transform(df[col])
             label_encoders[col] = le
 
     return df, label_encoders
+
 
 def encode_target(target, existing_encoder=None):
     le = existing_encoder or LabelEncoder()
