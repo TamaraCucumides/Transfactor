@@ -63,14 +63,15 @@ class BlockTabularDataset(Dataset):
         return token_ids
 
 
-    def _get_block_id_sequence(self, token_seq: List[Union[Any, Tuple[str, Tuple[Any], int]]]) -> List[int]:
+    def _get_block_id_sequence(self, token_seq: List[Union[Any, Tuple[str, Tuple[Any], Tuple[str], int]]]) -> List[int]:
         block_ids = []
 
         for token in token_seq:
             if isinstance(token, tuple) and token[0] == "BLOCK":
-                _, _, block_id = token
+                _, _, _, block_id = token  # <-- updated to unpack 4 elements
                 block_ids.append(block_id)
             else:
                 block_ids.append(self.null_block_id)
 
         return block_ids
+
