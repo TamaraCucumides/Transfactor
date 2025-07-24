@@ -113,6 +113,10 @@ def build_vocab_from_label_encoders(label_encoders, restrict_to_cols=None):
     Build a vocab that contains *every* integer id an encoder can emit,
     including the UNK id, even if that id never appears in df_train.
     """
+    print("[DEBUG] Entered build_vocab_from_label_encoders")
+    print(f"[DEBUG] restrict_to_cols = {restrict_to_cols}")
+    print(f"[DEBUG] type(restrict_to_cols) = {type(restrict_to_cols)}")
+    print(f"[DEBUG] encoders keys = {list(label_encoders.keys())}")
     cols = restrict_to_cols or label_encoders.keys()
     vocab = {}
     for col in cols:
