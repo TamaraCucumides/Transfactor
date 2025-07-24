@@ -43,49 +43,46 @@ def encode_target(target, existing_encoder=None):
     return labels, le
 
 def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
+    categorical_cols = set(label_encoders.keys())
 
-    categorical_cols = set(col for col in df.columns if col in label_encoders)
+    # Step 1: Filter blocks to only categorical columns
+    candidate_blocks = [
+        block for block in raw_block_defs
+        if all(col in categorical_cols for col in block["columns"])
+    ]
 
+    # Step 2: Encode block values
     encoded_blocks = []
-    used_cols = set()
-
-    for block in raw_block_defs:
+    for block in candidate_blocks:
         cols = block["columns"]
         raw_vals = block["values"]
-
-        # Only keep blocks whose columns are all categorical
-        if not all(col in categorical_cols for col in cols):
-            continue
-
         try:
-            encoded_vals = []
-            for col, val in zip(cols, raw_vals):
-                le = label_encoders[col]
-                val_str = str(val)
-                if val_str not in le.classes_:
-                    raise ValueError(f"Unseen value {val_str} in column {col}")
-                encoded_val = le.transform([val_str])[0]
-                encoded_vals.append(encoded_val)
-
+            encoded_vals = [
+                label_encoders[col].transform([val])[0]
+                for col, val in zip(cols, raw_vals)
+            ]
             encoded_blocks.append({
                 "block_id": block["block_id"],
                 "columns": cols,
                 "values": encoded_vals
             })
-
-            used_cols.update(cols)
         except Exception:
-            continue  # skip block if any error
+            continue  # skip unencodable blocks
 
     if not encoded_blocks:
         raise ValueError("No valid blocks remaining after filtering and encoding.")
 
-    # Restrict DataFrame strictly to used categorical columns
+    # Step 3: Build vocab from label-encoded values
     used_cols = set(col for block in encoded_blocks for col in block["columns"])
-    df_for_vocab = df[list(used_cols)].copy()
+    df_encoded_for_vocab = {
+        col: pd.Series(label_encoders[col].transform(df[col]))
+        for col in used_cols
+    }
+    df_encoded_for_vocab = pd.DataFrame(df_encoded_for_vocab)
 
-    vocab, _ = build_vocab_from_df(df_for_vocab)
+    vocab, _ = build_vocab_from_df(df_encoded_for_vocab)
     return vocab, encoded_blocks
+
 
 
 
