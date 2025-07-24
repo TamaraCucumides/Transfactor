@@ -38,35 +38,46 @@ def encode_target(target, existing_encoder=None):
 
 def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
     encoded_blocks = []
+    print(f"[DEBUG] Columns in df: {list(df.columns)}")
+    print(f"[DEBUG] Number of raw blocks: {len(raw_block_defs)}")
 
     for block in raw_block_defs:
         cols = block["columns"]
         raw_vals = block["values"]
+        print(f"\n[DEBUG] Processing block_id={block['block_id']}, cols={cols}, raw_vals={raw_vals}")
 
-        # keep blocks only if all columns were encoded
+        # Skip blocks where any column is missing from encoders
         if not all(col in label_encoders for col in cols):
+            print(f"[SKIP] Missing label encoder for some columns: {cols}")
             continue
 
         try:
-            encoded_vals = [
-                label_encoders[col].transform([val])[0]
-                for col, val in zip(cols, raw_vals)
-            ]
+            encoded_vals = []
+            for col, val in zip(cols, raw_vals):
+                le = label_encoders[col]
+                print(f"[ENCODING] Column={col}, Value={val}, Classes={le.classes_}")
+                encoded_val = le.transform([val])[0]  # this may throw
+                encoded_vals.append(encoded_val)
+
             encoded_blocks.append({
                 "block_id": block["block_id"],
                 "columns": cols,
                 "values": encoded_vals
             })
-        except Exception:
-            continue  # skip unencodable blocks
+            print(f"[OK] Encoded block {block['block_id']} → {encoded_vals}")
+
+        except Exception as e:
+            print(f"[ERROR] Failed to encode block {block['block_id']} with values {raw_vals}: {e}")
+            continue  # Skip bad block
 
     if not encoded_blocks:
         raise ValueError("No valid blocks remaining after filtering and encoding.")
 
-    # **single source of truth**: vocab from encoders
     vocab = build_vocab_from_label_encoders(label_encoders, restrict_to_cols=df.columns)
+    print(f"[INFO] Vocab built with {len(vocab)} columns")
 
     return vocab, encoded_blocks
+
 
 
 def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id=-1):
