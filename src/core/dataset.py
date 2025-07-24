@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from torch.utils.data import Dataset
 from typing import List, Union, Dict, Any, Tuple
 from core.data import BlockTabularData
@@ -38,9 +39,11 @@ class BlockTabularDataset(Dataset):
             if isinstance(token, tuple) and token[0] == "BLOCK":
                 _, block_values, _ = token
                 ids = []
+
                 for j, val in enumerate(block_values):
                     col_name = self.data.column_names[j]
-                    val_id = self.vocab[col_name][val]
+                    key = val.item() if isinstance(val, (np.integer, np.floating)) else val  # ✅ Coerce to native type
+                    val_id = self.vocab[col_name][key]
                     ids.append(val_id)
                 block_token_id = sum(ids) // len(ids)  # or use hash(tuple(ids))
                 token_ids.append(block_token_id)
