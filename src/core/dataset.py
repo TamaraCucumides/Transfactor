@@ -38,29 +38,50 @@ class BlockTabularDataset(Dataset):
         for i, token in enumerate(token_seq):
             if isinstance(token, tuple) and token[0] == "BLOCK":
                 _, block_values, block_columns, _ = token
+
+                print(f"[DEBUG] Encoding block token: values={block_values}, columns={block_columns}")
+
                 ids = []
 
                 for col, val in zip(block_columns, block_values):
-                    key = val.item() if isinstance(val, (np.integer, np.floating)) else val
+                    # Normalize the value to a hashable native Python type
+                    if isinstance(val, pd.Index):
+                        key = val[0] if len(val) > 0 else None
+                    elif isinstance(val, (np.integer, np.floating)):
+                        key = val.item()
+                    else:
+                        key = val
+
                     try:
                         val_id = self.vocab[col][key]
                     except KeyError:
-                        print(f"[KeyError in block] Column: {col}, Key: {key}, Available: {self.vocab[col].keys()}")
+                        print(f"[KeyError in BLOCK] Column: {col}, Key: {key}, Vocab: {list(self.vocab[col].keys())[:10]}...")
                         raise
+
                     ids.append(val_id)
 
-                block_token_id = sum(ids) // len(ids)  # or use hash(tuple(ids))
+                block_token_id = sum(ids) // len(ids) if ids else 0
                 token_ids.append(block_token_id)
+
             else:
                 col_name = self.data.column_names[i]
-                key = token.item() if isinstance(token, (np.integer, np.floating)) else token
+                val = token
+                # Normalize singleton value
+                if isinstance(val, pd.Index):
+                    key = val[0] if len(val) > 0 else None
+                elif isinstance(val, (np.integer, np.floating)):
+                    key = val.item()
+                else:
+                    key = val
+
                 try:
                     token_ids.append(self.vocab[col_name][key])
                 except KeyError:
-                    print(f"[KeyError single token] Column: {col_name}, Key: {key}, Available: {self.vocab[col_name].keys()}")
+                    print(f"[KeyError in singleton] Column: {col_name}, Key: {key}, Vocab: {list(self.vocab[col_name].keys())[:10]}...")
                     raise
 
         return token_ids
+
 
 
     def _get_block_id_sequence(self, token_seq: List[Union[Any, Tuple[str, Tuple[Any], Tuple[str], int]]]) -> List[int]:
