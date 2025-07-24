@@ -76,7 +76,7 @@ def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
 
     # Step 3: Extract used columns for vocab building
     used_cols = set(col for block in encoded_blocks for col in block["columns"])
-    df_for_vocab = df[list(used_cols)].copy()
+    df_for_vocab = df[list(label_encoders.keys())].copy()  # all categorical cols
 
     # Step 4: Build vocab and return
     vocab, _ = build_vocab_from_df(df_for_vocab)
