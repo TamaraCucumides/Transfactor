@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
+import numpy as np
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
@@ -42,7 +43,6 @@ def encode_target(target, existing_encoder=None):
     return labels, le
 
 def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
-    import numpy as np
 
     categorical_cols = set(label_encoders.keys())
 
@@ -58,29 +58,34 @@ def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
         cols = block["columns"]
         raw_vals = block["values"]
         try:
-            encoded_vals = [
-                label_encoders[col].transform([val])[0]
-                for col, val in zip(cols, raw_vals)
-            ]
+            encoded_vals = []
+            for col, val in zip(cols, raw_vals):
+                le = label_encoders[col]
+                val_str = str(val)
+                if val_str not in le.classes_:
+                    raise ValueError(f"Unseen value {val} for column '{col}'")
+                encoded_val = le.transform([val_str])[0]
+                encoded_vals.append(encoded_val)
             encoded_blocks.append({
                 "block_id": block["block_id"],
                 "columns": cols,
                 "values": encoded_vals
             })
-        except Exception as e:
-            # Skip block if any value is unknown/unencodable
-            continue
+        except Exception:
+            continue  # skip block if any value is unknown/unencodable
 
     if not encoded_blocks:
         raise ValueError("No valid blocks remaining after filtering and encoding.")
 
-    # Step 3: Extract used columns for vocab building
+    # Step 3: Extract only used columns from valid blocks
     used_cols = set(col for block in encoded_blocks for col in block["columns"])
-    df_for_vocab = df[list(label_encoders.keys())].copy()  # all categorical cols
+    df_for_vocab = df[list(used_cols)].copy()
 
-    # Step 4: Build vocab and return
+    # Step 4: Build vocab from those columns only
     vocab, _ = build_vocab_from_df(df_for_vocab)
+
     return vocab, encoded_blocks
+
 
 
 def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id=-1):
