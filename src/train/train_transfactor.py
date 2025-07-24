@@ -79,16 +79,17 @@ def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
     return vocab, encoded_blocks
 
 
-
 def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id=-1):
-    # Restrict df to columns present in vocab
+    encoded_cols = vocab.keys()
+    print(f"[prepare_dataset] Using encoded columns: {list(encoded_cols)}")
+    print(f"[prepare_dataset] First row:\n{df.iloc[0]}")
+    print(f"[prepare_dataset] Creating BlockTabularData...")
     
-    encoded_cols = list(vocab.keys())  # convert dict_keys to list explicitly
-    df = df[encoded_cols].copy()
-
-    
-
+    df = df[list(encoded_cols)].copy()
     block_data = BlockTabularData(df, block_defs)
+
+    print(f"[prepare_dataset] BlockTabularData done. Creating dataset...")
+
     dataset = BlockTabularDataset(
         data=block_data,
         labels=labels,
@@ -96,6 +97,8 @@ def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id
         pad_token_id=pad_token_id,
         null_block_id=null_block_id
     )
+    print(f"[prepare_dataset] Dataset done. Length: {len(dataset)}")
+
     return dataset
 
 def create_dataloader(dataset, batch_size, pad_token_id, pad_block_id):
