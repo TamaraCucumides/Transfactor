@@ -17,10 +17,22 @@ from sklearn.preprocessing import LabelEncoder
 
 def encode_dataframe(df, existing_encoders=None):
     label_encoders = existing_encoders or {}
+    df = df.copy()  # avoid modifying original
+
     for col in df.columns:
-        le = label_encoders.get(col, LabelEncoder())
-        df[col] = le.fit_transform(df[col]) if existing_encoders is None else le.transform(df[col])
-        label_encoders[col] = le
+        if col in label_encoders:
+            # Use the existing encoder
+            le = label_encoders[col]
+            try:
+                df[col] = le.transform(df[col])
+            except ValueError as e:
+                raise ValueError(f"Unseen label in column '{col}' during transform: {e}")
+        else:
+            # Fit a new encoder (training only)
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col])
+            label_encoders[col] = le
+
     return df, label_encoders
 
 def encode_target(target, existing_encoder=None):
