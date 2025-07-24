@@ -24,7 +24,7 @@ class BlockTabularData:
         self._compute_row_blocks()
 
     def _compute_row_blocks(self):
-        print(f"[DEBUG] First row sample:\n{self.df.iloc[0]}")
+        #print(f"[DEBUG] First row sample:\n{self.df.iloc[0]}")
         for idx, row in self.df.iterrows():
             matched_blocks = []
             used_columns = set()
@@ -68,7 +68,7 @@ class BlockTabularData:
         applicable_blocks = self.row_blocks[row_idx]  # List of (cols, block_id)
         used_columns = set()
 
-        print(f"\n[DEBUG] Row {row_idx} raw: {row.to_dict()}")  # Add this
+      #print(f"\n[DEBUG] Row {row_idx} raw: {row.to_dict()}")  # Add this
 
         for cols, block_id in applicable_blocks:
             try:
@@ -85,9 +85,9 @@ class BlockTabularData:
                     token_seq[idx] = ("BLOCK", tuple(block_values), tuple(cols), block_id)
                     used_columns.add(col)
 
-                print(f"[DEBUG] Block assigned at row {row_idx}: {block_id}, cols={cols}, values={block_values}")
+                #print(f"[DEBUG] Block assigned at row {row_idx}: {block_id}, cols={cols}, values={block_values}")
             except Exception as e:
-                print(f"[ERROR] in get_token_sequence row {row_idx}, block {block_id}: {e}")
+                #print(f"[ERROR] in get_token_sequence row {row_idx}, block {block_id}: {e}")
                 raise
 
         for i, col in enumerate(self.column_names):

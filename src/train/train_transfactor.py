@@ -38,17 +38,17 @@ def encode_target(target, existing_encoder=None):
 
 def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
     encoded_blocks = []
-    print(f"[DEBUG] Columns in df: {list(df.columns)}")
-    print(f"[DEBUG] Number of raw blocks: {len(raw_block_defs)}")
+    #print(f"[DEBUG] Columns in df: {list(df.columns)}")
+    #print(f"[DEBUG] Number of raw blocks: {len(raw_block_defs)}")
 
     for block in raw_block_defs:
         cols = block["columns"]
         raw_vals = block["values"]
-        print(f"\n[DEBUG] Processing block_id={block['block_id']}, cols={cols}, raw_vals={raw_vals}")
+        #print(f"\n[DEBUG] Processing block_id={block['block_id']}, cols={cols}, raw_vals={raw_vals}")
 
         # Skip blocks where any column is missing from encoders
         if not all(col in label_encoders for col in cols):
-            print(f"[SKIP] Missing label encoder for some columns: {cols}")
+            #print(f"[SKIP] Missing label encoder for some columns: {cols}")
             continue
 
         try:
@@ -64,7 +64,7 @@ def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
                 "columns": cols,
                 "values": encoded_vals
             })
-            print(f"[OK] Encoded block {block['block_id']} → {encoded_vals}")
+            #print(f"[OK] Encoded block {block['block_id']} → {encoded_vals}")
 
         except Exception as e:
             print(f"[ERROR] Failed to encode block {block['block_id']} with values {raw_vals}: {e}")
@@ -74,21 +74,21 @@ def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
         raise ValueError("No valid blocks remaining after filtering and encoding.")
 
     vocab = build_vocab_from_label_encoders(label_encoders, restrict_to_cols=df.columns)
-    print(f"[INFO] Vocab built with {len(vocab)} columns")
+    #print(f"[INFO] Vocab built with {len(vocab)} columns")
 
     return vocab, encoded_blocks
 
 
 def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id=-1):
     encoded_cols = vocab.keys()
-    print(f"[prepare_dataset] Using encoded columns: {list(encoded_cols)}")
-    print(f"[prepare_dataset] First row:\n{df.iloc[0]}")
-    print(f"[prepare_dataset] Creating BlockTabularData...")
+    #print(f"[prepare_dataset] Using encoded columns: {list(encoded_cols)}")
+    #print(f"[prepare_dataset] First row:\n{df.iloc[0]}")
+    #print(f"[prepare_dataset] Creating BlockTabularData...")
     
     df = df[list(encoded_cols)].copy()
     block_data = BlockTabularData(df, block_defs)
 
-    print(f"[prepare_dataset] BlockTabularData done. Creating dataset...")
+    #print(f"[prepare_dataset] BlockTabularData done. Creating dataset...")
 
     dataset = BlockTabularDataset(
         data=block_data,
@@ -97,7 +97,7 @@ def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id
         pad_token_id=pad_token_id,
         null_block_id=null_block_id
     )
-    print(f"[prepare_dataset] Dataset done. Length: {len(dataset)}")
+    #print(f"[prepare_dataset] Dataset done. Length: {len(dataset)}")
 
     return dataset
 
@@ -173,7 +173,7 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
     print("[STEP] Preparing vocab and encoded blocks")
     vocab, block_defs = prepare_vocab_and_blocks(df_train_encoded, raw_block_defs, label_encoders)
     print(f"[INFO] Encoded {len(block_defs)} valid blocks")
-    print(f"[DEBUG] Vocab keys: {list(vocab.keys())}")
+    #print(f"[DEBUG] Vocab keys: {list(vocab.keys())}")
 
     print("[STEP] Creating datasets")
     dataset_train = prepare_dataset(df_train_encoded, block_defs, target_labels_train, vocab)
@@ -195,7 +195,7 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
 
     print("[STEP] Initializing model")
     vocab_size = max(v for col in vocab.values() for v in col.values()) + 1
-    print(f"[DEBUG] Vocab size: {vocab_size}")
+    #print(f"[DEBUG] Vocab size: {vocab_size}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -208,7 +208,7 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
         num_classes=len(set(target_labels_train)),
         max_seq_len=100
     ).to(device)
-    
+
     print("[INFO] Model initialized")
 
     criterion = nn.CrossEntropyLoss()

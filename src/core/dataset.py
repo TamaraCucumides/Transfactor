@@ -40,7 +40,7 @@ class BlockTabularDataset(Dataset):
             if isinstance(token, tuple) and token[0] == "BLOCK":
                 _, block_values, block_columns, _ = token
 
-                print(f"[DEBUG] Encoding block token: values={block_values}, columns={block_columns}")
+                #print(f"[DEBUG] Encoding block token: values={block_values}, columns={block_columns}")
 
                 ids = []
 
