@@ -69,10 +69,21 @@ class BlockTabularData:
         used_columns = set()
 
         for cols, block_id in applicable_blocks:
-            block_values = [row[col] for col in cols]
+            try:
+                block_values = [
+                    val[0] if isinstance(val := row[col], pd.Index) else val
+                    for col in cols
+                ]
+            except Exception as e:
+                print(f"[get_token_sequence] Error extracting block values at row {row_idx}, block {block_id}: {e}")
+                block_values = [None] * len(cols)
+
             for col in cols:
-                idx = self.column_names.index(col)
-                token_seq[idx] = ("BLOCK", tuple(block_values), tuple(cols), block_id)
+                try:
+                    idx = self.column_names.index(col)
+                    token_seq[idx] = ("BLOCK", tuple(block_values), tuple(cols), block_id)
+                except Exception as e:
+                    print(f"[get_token_sequence] Error assigning block token for column {col}: {e}")
                 used_columns.add(col)
 
         # Fill in singleton (non-block) columns
@@ -81,6 +92,7 @@ class BlockTabularData:
                 token_seq[i] = row[col]
 
         return token_seq
+
 
     def get_row_block_ids(self, row_idx: int) -> List[int]:
         """Returns the block IDs that apply to a given row."""
