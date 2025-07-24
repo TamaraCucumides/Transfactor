@@ -43,9 +43,8 @@ def encode_target(target, existing_encoder=None):
     return labels, le
 
 def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
-    import numpy as np
 
-    categorical_cols = set(label_encoders.keys())
+    categorical_cols = set(col for col in df.columns if col in label_encoders)
 
     encoded_blocks = []
     used_cols = set()
@@ -82,8 +81,8 @@ def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
         raise ValueError("No valid blocks remaining after filtering and encoding.")
 
     # Restrict DataFrame strictly to used categorical columns
-    df_for_vocab = df[list(categorical_cols)].copy()
-
+    used_cols = set(col for block in encoded_blocks for col in block["columns"])
+    df_for_vocab = df[list(used_cols)].copy()
 
     vocab, _ = build_vocab_from_df(df_for_vocab)
     return vocab, encoded_blocks
