@@ -32,24 +32,25 @@ class BlockTabularData:
                 cols = block["columns"]
                 vals = block["values"]
 
-                # Skip block if any column is missing
                 if any(col not in self.df.columns for col in cols):
                     continue
 
-                valid = True
-                for col, val in zip(cols, vals):
-                    try:
-                        if row[col] != val:
-                            valid = False
-                            break
-                    except Exception:
-                        valid = False
-                        break
+                try:
+                    comparisons = []
+                    for col, val in zip(cols, vals):
+                        cell = row[col]
+                        if isinstance(cell, pd.Index):
+                            print(f"[BUG] row[{col}] is a Pandas Index at row {idx}: {cell}")
+                        comparisons.append(cell == val)
 
-                if valid and not any(col in used_columns for col in cols):  # check overlap
-                    matched_blocks.append((cols, block["block_id"]))
-                    used_columns.update(cols)
-                    self.block_to_rows[block["block_id"]].add(idx)
+                    if all(comparisons):
+                        if not any(col in used_columns for col in cols):
+                            matched_blocks.append((cols, block["block_id"]))
+                            used_columns.update(cols)
+                            self.block_to_rows[block["block_id"]].add(idx)
+                except Exception as e:
+                    print(f"[ERROR] row {idx}, block {block} => {e}")
+                    continue
 
             self.row_blocks.append(matched_blocks)
 
