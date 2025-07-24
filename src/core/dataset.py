@@ -32,26 +32,36 @@ class BlockTabularDataset(Dataset):
 
         return token_ids, block_ids, label
 
-    def _encode_token_sequence(self, token_seq: List[Union[Any, Tuple[str, Tuple[Any], int]]]) -> List[int]:
+    def _encode_token_sequence(self, token_seq: List[Union[Any, Tuple[str, Tuple[Any], List[str], int]]]) -> List[int]:
         token_ids = []
 
         for i, token in enumerate(token_seq):
             if isinstance(token, tuple) and token[0] == "BLOCK":
-                _, block_values, _ = token
+                _, block_values, block_columns, _ = token
                 ids = []
 
-                for j, val in enumerate(block_values):
-                    col_name = self.data.column_names[j]
-                    key = val.item() if isinstance(val, (np.integer, np.floating)) else val  # ✅ Coerce to native type
-                    val_id = self.vocab[col_name][key]
+                for col, val in zip(block_columns, block_values):
+                    key = val.item() if isinstance(val, (np.integer, np.floating)) else val
+                    try:
+                        val_id = self.vocab[col][key]
+                    except KeyError:
+                        print(f"[KeyError in block] Column: {col}, Key: {key}, Available: {self.vocab[col].keys()}")
+                        raise
                     ids.append(val_id)
+
                 block_token_id = sum(ids) // len(ids)  # or use hash(tuple(ids))
                 token_ids.append(block_token_id)
             else:
                 col_name = self.data.column_names[i]
-                token_ids.append(self.vocab[col_name][token])
+                key = token.item() if isinstance(token, (np.integer, np.floating)) else token
+                try:
+                    token_ids.append(self.vocab[col_name][key])
+                except KeyError:
+                    print(f"[KeyError single token] Column: {col_name}, Key: {key}, Available: {self.vocab[col_name].keys()}")
+                    raise
 
         return token_ids
+
 
     def _get_block_id_sequence(self, token_seq: List[Union[Any, Tuple[str, Tuple[Any], int]]]) -> List[int]:
         block_ids = []
