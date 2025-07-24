@@ -117,7 +117,12 @@ def build_vocab_from_label_encoders(label_encoders, restrict_to_cols=None):
     print(f"[DEBUG] restrict_to_cols = {restrict_to_cols}")
     print(f"[DEBUG] type(restrict_to_cols) = {type(restrict_to_cols)}")
     print(f"[DEBUG] encoders keys = {list(label_encoders.keys())}")
-    cols = restrict_to_cols or label_encoders.keys()
+
+    if restrict_to_cols is not None:
+        restrict_to_cols = list(restrict_to_cols)
+
+    cols = restrict_to_cols if restrict_to_cols is not None else label_encoders.keys()
+
     vocab = {}
     for col in cols:
         le = label_encoders[col]
@@ -126,5 +131,6 @@ def build_vocab_from_label_encoders(label_encoders, restrict_to_cols=None):
         n = len(classes)
         vocab[col] = {int(i): int(i) for i in range(n)}  # identity mapping
     return vocab
+
 
 
