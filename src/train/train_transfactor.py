@@ -48,8 +48,17 @@ def encode_target(target, existing_encoder=None):
     return labels, le
 
 def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
+    categorical_cols = set(label_encoders.keys())
+
+    # Filter out any block using columns not in label_encoders
+    filtered_block_defs = [
+        block for block in raw_block_defs
+        if all(col in categorical_cols for col in block["columns"])
+    ]
+
     vocab, _ = build_vocab_from_df(df)
-    block_defs = encode_block_definitions(raw_block_defs, label_encoders)
+    block_defs = encode_block_definitions(filtered_block_defs, label_encoders)
+
     return vocab, block_defs
 
 def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id=-1):
