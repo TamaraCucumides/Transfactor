@@ -1,6 +1,7 @@
 import torch
 from typing import List, Union, Dict, Any
 from sklearn.preprocessing import LabelEncoder
+import pandas as pd
 
 def build_vocab_from_df(df):
     vocab = {}
@@ -104,7 +105,7 @@ class SafeLabelEncoder:
     @property
     def unk_index(self):
         return self._unk_index
-        
+
 
 def build_vocab_from_label_encoders(label_encoders, restrict_to_cols=None):
     """
