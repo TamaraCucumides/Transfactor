@@ -63,7 +63,7 @@ class BlockTabularData:
             block_values = [row[col] for col in cols]
             for col in cols:
                 idx = self.column_names.index(col)
-                token_seq[idx] = ("BLOCK", tuple(block_values), block_id)
+                token_seq[idx] = ("BLOCK", tuple(block_values), tuple(cols), block_id)
                 used_columns.add(col)
 
         # Fill in singleton (non-block) columns
