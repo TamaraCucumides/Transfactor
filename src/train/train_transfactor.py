@@ -62,6 +62,10 @@ def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
     return vocab, block_defs
 
 def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id=-1):
+    # Restrict df to columns present in vocab
+    encoded_cols = vocab.keys()
+    df = df[list(encoded_cols)].copy()
+
     block_data = BlockTabularData(df, block_defs)
     dataset = BlockTabularDataset(
         data=block_data,
