@@ -9,6 +9,7 @@ from core.block_finding import fast_blocks_numpy
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import pandas as pd
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
