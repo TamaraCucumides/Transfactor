@@ -91,33 +91,36 @@ def test_model(model, dataloader, criterion, device):
 
 # Main
 
-def run_pipeline(df, target, min_support=10, max_cols=3, batch_size=2, epochs=10):
-    # Split data
-    df_train, df_test, target_train, target_test = train_test_split(
-        df, target, test_size=0.2, random_state=42, stratify=target
-    )
+def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_test,
+                 min_support=10, max_cols=3, batch_size=2, epochs=10):
 
-    # Block mining on training data
+    # Block mining only on training data
     raw_block_defs = fast_blocks_numpy(df_train, min_support=min_support, max_cols=max_cols)
 
-    # Encode
+    # Encode features
     df_train_encoded, label_encoders = encode_dataframe(df_train)
+    df_val_encoded, _ = encode_dataframe(df_val, existing_encoders=label_encoders)
     df_test_encoded, _ = encode_dataframe(df_test, existing_encoders=label_encoders)
 
+    # Encode targets
     target_labels_train, target_le = encode_target(target_train)
+    target_labels_val, _ = encode_target(target_val, existing_encoder=target_le)
     target_labels_test, _ = encode_target(target_test, existing_encoder=target_le)
 
-    # Vocab and block definitions
+    # Build vocab and encode blocks
     vocab, block_defs = prepare_vocab_and_blocks(df_train_encoded, raw_block_defs, label_encoders)
 
-    # Dataset and Dataloader
+    # Datasets
     dataset_train = prepare_dataset(df_train_encoded, block_defs, target_labels_train, vocab)
+    dataset_val = prepare_dataset(df_val_encoded, block_defs, target_labels_val, vocab)
     dataset_test = prepare_dataset(df_test_encoded, block_defs, target_labels_test, vocab)
 
+    # Dataloaders
     num_blocks = len(raw_block_defs)
     pad_block_id = num_blocks
 
     dataloader_train = create_dataloader(dataset_train, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
+    dataloader_val = create_dataloader(dataset_val, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
     dataloader_test = create_dataloader(dataset_test, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
 
     # Model setup
@@ -139,7 +142,10 @@ def run_pipeline(df, target, min_support=10, max_cols=3, batch_size=2, epochs=10
     for epoch in range(epochs):
         print(f"\nEpoch {epoch+1}")
         train_model(model, dataloader_train, criterion, optimizer, device, label="Train")
-        test_model(model, dataloader_test, criterion, device)
+        test_model(model, dataloader_val, criterion, device)
+
+    print("\nFinal evaluation on test set:")
+    test_model(model, dataloader_test, criterion, device)
 
     return model, label_encoders, target_le, vocab
 
