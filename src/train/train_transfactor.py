@@ -197,6 +197,8 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
     vocab_size = max(v for col in vocab.values() for v in col.values()) + 1
     print(f"[DEBUG] Vocab size: {vocab_size}")
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     model = Transfactor(
         vocab_size=vocab_size,
         num_blocks=num_blocks,
@@ -205,7 +207,8 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
         num_layers=2,
         num_classes=len(set(target_labels_train)),
         max_seq_len=100
-    ).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    ).to(device)
+    
     print("[INFO] Model initialized")
 
     criterion = nn.CrossEntropyLoss()

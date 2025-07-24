@@ -88,6 +88,10 @@ class Transfactor(nn.Module):
 
         return self.classifier(pooled)
 
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
 
 #TODO: Add column_ids?
 #TODO: Add [CLS] token?
