@@ -17,18 +17,24 @@ from sklearn.preprocessing import LabelEncoder
 
 def encode_dataframe(df, existing_encoders=None):
     label_encoders = existing_encoders or {}
-    df = df.copy()  # avoid modifying original
+    df = df.copy()
 
     for col in df.columns:
+        # Skip numeric columns (int/float)
+        if pd.api.types.is_numeric_dtype(df[col]):
+            continue
+
         if col in label_encoders:
-            # Use the existing encoder
             le = label_encoders[col]
             try:
                 df[col] = le.transform(df[col])
             except ValueError as e:
-                raise ValueError(f"Unseen label in column '{col}' during transform: {e}")
+                unseen = set(df[col].unique()) - set(le.classes_)
+                raise ValueError(
+                    f"Unseen label(s) in column '{col}': {unseen}. "
+                    f"Known classes: {list(le.classes_)}"
+                )
         else:
-            # Fit a new encoder (training only)
             le = LabelEncoder()
             df[col] = le.fit_transform(df[col])
             label_encoders[col] = le
