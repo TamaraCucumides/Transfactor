@@ -10,8 +10,9 @@ from core.utils import SafeLabelEncoder
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import pandas as pd
 import numpy as np
+import pandas as pd
+from collections import defaultdict
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
@@ -43,9 +44,10 @@ def encode_target(target, existing_encoder=None):
     return labels, le
 
 def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
+
     categorical_cols = set(label_encoders.keys())
 
-    # Step 1: Filter blocks to only categorical columns
+    # Step 1: Keep only blocks using categorical columns
     candidate_blocks = [
         block for block in raw_block_defs
         if all(col in categorical_cols for col in block["columns"])
@@ -67,20 +69,26 @@ def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
                 "values": encoded_vals
             })
         except Exception:
-            continue  # skip unencodable blocks
+            continue  # skip block if encoding fails
 
     if not encoded_blocks:
         raise ValueError("No valid blocks remaining after filtering and encoding.")
 
-    # Step 3: Build vocab from label-encoded values
+    # Step 3: Build vocab from df and block values combined
     used_cols = set(col for block in encoded_blocks for col in block["columns"])
-    df_encoded_for_vocab = {
-        col: pd.Series(label_encoders[col].transform(df[col]))
-        for col in used_cols
-    }
-    df_encoded_for_vocab = pd.DataFrame(df_encoded_for_vocab)
+    vocab = defaultdict(dict)
 
-    vocab, _ = build_vocab_from_df(df_encoded_for_vocab)
+    for col in used_cols:
+        # values from df
+        df_vals = label_encoders[col].transform(df[col])
+        # values from block definitions
+        block_vals = [val for block in encoded_blocks if col in block["columns"]
+                      for val, c in zip(block["values"], block["columns"]) if c == col]
+
+        all_vals = set(df_vals).union(block_vals)
+        for val in all_vals:
+            vocab[col][val] = val  # identity mapping
+
     return vocab, encoded_blocks
 
 
