@@ -24,16 +24,9 @@ def encode_dataframe(df, existing_encoders=None):
     label_encoders = existing_encoders or {}
 
     for col in df.columns:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            continue  # skip numeric columns
-
-        if col in label_encoders:
-            le = label_encoders[col]
-            df[col] = le.transform(df[col])
-        else:
-            le = SafeLabelEncoder()
-            df[col] = le.fit_transform(df[col])
-            label_encoders[col] = le
+        le = label_encoders.get(col, SafeLabelEncoder())
+        df[col] = le.fit_transform(df[col]) if col not in label_encoders else le.transform(df[col])
+        label_encoders[col] = le
 
     return df, label_encoders
 
@@ -44,19 +37,10 @@ def encode_target(target, existing_encoder=None):
     return labels, le
 
 def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
-
-    categorical_cols = set(label_encoders.keys())
-
-    # Step 1: Keep blocks that only use categorical columns
-    candidate_blocks = [
-        block for block in raw_block_defs
-        if all(col in categorical_cols for col in block["columns"])
-    ]
-
-    # Step 2: Encode block values using fitted label encoders
     encoded_blocks = []
-    block_value_map = {}  # collect values per column for vocab
-    for block in candidate_blocks:
+    block_value_map = {}
+
+    for block in raw_block_defs:
         cols = block["columns"]
         raw_vals = block["values"]
         try:
@@ -64,41 +48,32 @@ def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
             for col, val in zip(cols, raw_vals):
                 encoded_val = label_encoders[col].transform([val])[0]
                 encoded_vals.append(encoded_val)
-
-                if col not in block_value_map:
-                    block_value_map[col] = set()
-                block_value_map[col].add(encoded_val)
-
+                block_value_map.setdefault(col, set()).add(encoded_val)
             encoded_blocks.append({
                 "block_id": block["block_id"],
                 "columns": cols,
                 "values": encoded_vals
             })
-
         except Exception:
-            continue  # Skip block if encoding fails
+            continue
 
     if not encoded_blocks:
-        raise ValueError("No valid blocks remaining after filtering and encoding.")
+        raise ValueError("No valid blocks remaining.")
 
-    # Step 3: Build vocab from actual df + required block values
-    df_for_vocab = df[list(label_encoders.keys())].copy()
+    # Use full df to build vocab
+    df_for_vocab = df.copy()
     for col, values in block_value_map.items():
-        if col not in df_for_vocab.columns:
-            df_for_vocab[col] = pd.Series(list(values))
-        else:
-            current_vals = set(df_for_vocab[col].unique())
-            missing = values - current_vals
+        if col in df_for_vocab.columns:
+            missing = values - set(df_for_vocab[col].unique())
             if missing:
                 df_for_vocab = pd.concat([
                     df_for_vocab,
                     pd.DataFrame({col: list(missing)})
                 ], ignore_index=True)
 
-    # Step 4: Build vocab
     vocab, _ = build_vocab_from_df(df_for_vocab)
-
     return vocab, encoded_blocks
+
 
 
 def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id=-1):
