@@ -3,7 +3,7 @@
 from model.transfactor import Transfactor
 from core.data import BlockTabularData
 from core.dataset import BlockTabularDataset
-from core.utils import build_vocab_from_df, encode_block_definitions, collate_fn_pad
+from core.utils import build_vocab_from_df, encode_block_definitions, collate_fn_pad, build_vocab_from_label_encoders
 from core.block_finding import fast_blocks_numpy
 from core.utils import SafeLabelEncoder
 
@@ -38,42 +38,35 @@ def encode_target(target, existing_encoder=None):
 
 def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
     encoded_blocks = []
-    block_value_map = {}
 
     for block in raw_block_defs:
         cols = block["columns"]
         raw_vals = block["values"]
+
+        # keep blocks only if all columns were encoded
+        if not all(col in label_encoders for col in cols):
+            continue
+
         try:
-            encoded_vals = []
-            for col, val in zip(cols, raw_vals):
-                encoded_val = label_encoders[col].transform([val])[0]
-                encoded_vals.append(encoded_val)
-                block_value_map.setdefault(col, set()).add(encoded_val)
+            encoded_vals = [
+                label_encoders[col].transform([val])[0]
+                for col, val in zip(cols, raw_vals)
+            ]
             encoded_blocks.append({
                 "block_id": block["block_id"],
                 "columns": cols,
                 "values": encoded_vals
             })
         except Exception:
-            continue
+            continue  # skip unencodable blocks
 
     if not encoded_blocks:
-        raise ValueError("No valid blocks remaining.")
+        raise ValueError("No valid blocks remaining after filtering and encoding.")
 
-    # Use full df to build vocab
-    df_for_vocab = df.copy()
-    for col, values in block_value_map.items():
-        if col in df_for_vocab.columns:
-            missing = values - set(df_for_vocab[col].unique())
-            if missing:
-                df_for_vocab = pd.concat([
-                    df_for_vocab,
-                    pd.DataFrame({col: list(missing)})
-                ], ignore_index=True)
+    # **single source of truth**: vocab from encoders
+    vocab = build_vocab_from_label_encoders(label_encoders, restrict_to_cols=df.columns)
 
-    vocab, _ = build_vocab_from_df(df_for_vocab)
     return vocab, encoded_blocks
-
 
 
 def prepare_dataset(df, block_defs, labels, vocab, pad_token_id=0, null_block_id=-1):
