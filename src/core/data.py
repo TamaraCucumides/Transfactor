@@ -24,6 +24,7 @@ class BlockTabularData:
         self._compute_row_blocks()
 
     def _compute_row_blocks(self):
+        print(f"[DEBUG] First row sample:\n{self.df.iloc[0]}")
         for idx, row in self.df.iterrows():
             matched_blocks = []
             used_columns = set()
