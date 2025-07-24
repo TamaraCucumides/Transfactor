@@ -50,13 +50,20 @@ def encode_target(target, existing_encoder=None):
 def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
     categorical_cols = set(label_encoders.keys())
 
-    # Filter out any block using columns not in label_encoders
+    # Step 1: Filter block defs
     filtered_block_defs = [
         block for block in raw_block_defs
         if all(col in categorical_cols for col in block["columns"])
     ]
 
-    vocab, _ = build_vocab_from_df(df)
+    # Step 2: Extract columns used in the filtered blocks
+    used_cols = set(col for block in filtered_block_defs for col in block["columns"])
+    df_for_vocab = df[list(used_cols)].copy()
+
+    # Step 3: Build vocab only from those columns
+    vocab, _ = build_vocab_from_df(df_for_vocab)
+
+    # Step 4: Encode blocks
     block_defs = encode_block_definitions(filtered_block_defs, label_encoders)
 
     return vocab, block_defs
@@ -128,6 +135,7 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
 
     # Block mining only on training data
     raw_block_defs = fast_blocks_numpy(df_train, min_support=min_support, max_cols=max_cols)
+    print("Blocks:", raw_block_defs)
 
     # Encode features
     df_train_encoded, label_encoders = encode_dataframe(df_train)
