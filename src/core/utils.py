@@ -2,6 +2,7 @@ import torch
 from typing import List, Union, Dict, Any
 from sklearn.preprocessing import LabelEncoder
 import pandas as pd
+import numpy as np
 
 def build_vocab_from_df(df):
     vocab = {}
