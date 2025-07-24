@@ -81,8 +81,9 @@ def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
     if not encoded_blocks:
         raise ValueError("No valid blocks remaining after filtering and encoding.")
 
-    # ⚠️ Restrict DataFrame strictly to used categorical columns
-    df_for_vocab = df[list(used_cols)].copy()
+    # Restrict DataFrame strictly to used categorical columns
+    df_for_vocab = df[list(categorical_cols)].copy()
+
 
     vocab, _ = build_vocab_from_df(df_for_vocab)
     return vocab, encoded_blocks
