@@ -36,17 +36,23 @@ class BlockTabularData:
                 if any(col not in self.df.columns for col in cols):
                     continue
 
-                try:
-                    if all(row[col] == val for col, val in zip(cols, vals)):
-                        if not any(col in used_columns for col in cols):
-                            matched_blocks.append((cols, block["block_id"]))
-                            used_columns.update(cols)
-                            self.block_to_rows[block["block_id"]].add(idx)
-                except Exception as e:
-                    print(f"[BlockTabularData] Error on row {idx}, block {block}: {e}")
-                    continue
+                valid = True
+                for col, val in zip(cols, vals):
+                    try:
+                        if row[col] != val:
+                            valid = False
+                            break
+                    except Exception:
+                        valid = False
+                        break
+
+                if valid and not any(col in used_columns for col in cols):  # check overlap
+                    matched_blocks.append((cols, block["block_id"]))
+                    used_columns.update(cols)
+                    self.block_to_rows[block["block_id"]].add(idx)
 
             self.row_blocks.append(matched_blocks)
+
 
     def get_token_sequence(self, row_idx: int) -> List[Union[Any, List[Any]]]:
         """
