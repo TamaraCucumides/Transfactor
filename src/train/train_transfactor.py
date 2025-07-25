@@ -55,7 +55,7 @@ def prepare_vocab_and_blocks(df, raw_block_defs, label_encoders):
             continue
 
     if not encoded_blocks:
-        raise ValueError("No valid blocks remaining after filtering and encoding.")
+        print("No valid blocks remaining after filtering and encoding.")
 
     vocab = build_vocab_from_label_encoders(label_encoders, restrict_to_cols=df.columns)
     return vocab, encoded_blocks
@@ -117,11 +117,10 @@ def test_model(model, dataloader, criterion, device):
 
 # === Main Pipeline ===
 
-def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_test,
+def run_transfactor(df_train, target_train, df_val, target_val, df_test, target_test,
                  min_support=10, max_cols=3, batch_size=2, epochs=10):
 
-    #raw_block_defs = fast_blocks_numpy(df_train, min_support=min_support, max_cols=max_cols)
-    raw_block_defs = []
+    raw_block_defs = fast_blocks_numpy(df_train, min_support=min_support, max_cols=max_cols)
     print(f"[INFO] Finished block mining with {len(raw_block_defs)} blocks")
 
     df_train_encoded, label_encoders = encode_dataframe(df_train)
@@ -155,6 +154,75 @@ def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_tes
     model = Transfactor(
         vocab_size=vocab_size,
         num_blocks=num_blocks,
+        d_model=32,
+        nhead=4,
+        num_layers=2,
+        num_classes=len(set(target_labels_train)),
+        max_seq_len=100
+    ).to(device)
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+
+    best_state = None
+    best_val_loss = float("inf")
+    best_epoch = -1
+
+    for epoch in range(epochs):
+        print(f"\nEpoch {epoch + 1}")
+        train_model(model, dataloader_train, criterion, optimizer, device=device, label="Train", train=True)
+        val_loss, val_acc = train_model(model, dataloader_val, criterion, optimizer=None, device=device, label="Val", train=False)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_epoch = epoch
+            best_state = copy.deepcopy(model.state_dict())
+            print(f"[BEST] New best model at epoch {epoch+1} with val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+        print(f"[INFO] Loaded best model from epoch {best_epoch + 1}")
+
+    print("\nFinal evaluation on test set:")
+    test_model(model, dataloader_test, criterion, device=device)
+
+    return model, label_encoders, target_le, vocab
+
+def run_transfactor_no_blocks(df_train, target_train, df_val, target_val,
+                               df_test, target_test, batch_size=2, epochs=10):
+    print(f"[INFO] Running Transfactor baseline with no blocks (1 token per value)")
+
+    # Encode features
+    df_train_encoded, label_encoders = encode_dataframe(df_train)
+    df_val_encoded, _ = encode_dataframe(df_val, existing_encoders=label_encoders)
+    df_test_encoded, _ = encode_dataframe(df_test, existing_encoders=label_encoders)
+
+    # Encode targets
+    target_labels_train, target_le = encode_target(target_train)
+    target_labels_val, _ = encode_target(target_val, existing_encoder=target_le)
+    target_labels_test, _ = encode_target(target_test, existing_encoder=target_le)
+
+    # Build vocab only
+    vocab = build_vocab_from_label_encoders(label_encoders, restrict_to_cols=df_train_encoded.columns)
+
+    # === SKIP BLOCK MINING ===
+    block_defs = []  # empty = treat all columns as singleton/default blocks
+
+    dataset_train = prepare_dataset(df_train_encoded, block_defs, target_labels_train, vocab)
+    dataset_val = prepare_dataset(df_val_encoded, block_defs, target_labels_val, vocab)
+    dataset_test = prepare_dataset(df_test_encoded, block_defs, target_labels_test, vocab)
+
+    pad_block_id = 0  # only null block id will be used
+    vocab_size = max(v for col in vocab.values() for v in col.values()) + 1
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    dataloader_train = create_dataloader(dataset_train, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
+    dataloader_val = create_dataloader(dataset_val, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
+    dataloader_test = create_dataloader(dataset_test, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
+
+    model = Transfactor(
+        vocab_size=vocab_size,
+        num_blocks=0,  # no real blocks
         d_model=32,
         nhead=4,
         num_layers=2,
