@@ -120,7 +120,8 @@ def test_model(model, dataloader, criterion, device):
 def run_pipeline(df_train, target_train, df_val, target_val, df_test, target_test,
                  min_support=10, max_cols=3, batch_size=2, epochs=10):
 
-    raw_block_defs = fast_blocks_numpy(df_train, min_support=min_support, max_cols=max_cols)
+    #raw_block_defs = fast_blocks_numpy(df_train, min_support=min_support, max_cols=max_cols)
+    raw_block_defs = []
     print(f"[INFO] Finished block mining with {len(raw_block_defs)} blocks")
 
     df_train_encoded, label_encoders = encode_dataframe(df_train)

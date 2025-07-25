@@ -2,6 +2,10 @@
 import pandas as pd
 from itertools import combinations
 
+import numpy as np
+from itertools import combinations
+import time
+
 def find_non_overlapping_blocks(df, min_support=2, max_cols=4):
     used_rows = set()
     block_defs = []
@@ -53,9 +57,6 @@ def find_non_overlapping_blocks(df, min_support=2, max_cols=4):
     return block_defs
 
 def fast_blocks_numpy(df, min_support=5, max_cols=3, max_blocks=None):
-    import numpy as np
-    from itertools import combinations
-    import time
 
     used_rows = set()
     block_defs = []
@@ -92,7 +93,6 @@ def fast_blocks_numpy(df, min_support=5, max_cols=3, max_blocks=None):
                     new_rows = matched_indices - used_rows
 
                     if len(new_rows) >= min_support:
-                        # Decode back to original values
                         decoded_vals = [
                             value_maps[col][v] for col, v in zip(col_list, val)
                         ]
