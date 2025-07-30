@@ -21,7 +21,7 @@ from sklearn.metrics import f1_score, roc_auc_score
 
 def evaluate_metrics(y_true, y_pred, y_prob=None, average='macro'):
     metrics = {
-        "accuracy": (y_true == y_pred).mean(),
+        "accuracy": np.mean(y_true == y_pred),
         "f1": f1_score(y_true, y_pred, average=average),
     }
     if y_prob is not None and len(set(y_true)) == 2:
