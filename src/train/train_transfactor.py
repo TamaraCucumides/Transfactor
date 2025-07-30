@@ -20,6 +20,10 @@ from sklearn.metrics import f1_score, roc_auc_score
 # === Utility Functions ===
 
 def evaluate_metrics(y_true, y_pred, y_prob=None, average='macro'):
+
+    y_true = np.array(y_true).astype(int)
+    y_pred = np.array(y_pred).astype(int)
+    
     metrics = {
         "accuracy": np.mean(y_true == y_pred),
         "f1": f1_score(y_true, y_pred, average=average),
