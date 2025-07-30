@@ -23,7 +23,7 @@ def evaluate_metrics(y_true, y_pred, y_prob=None, average='macro'):
 
     y_true = np.array(y_true).astype(int)
     y_pred = np.array(y_pred).astype(int)
-    
+
     metrics = {
         "accuracy": np.mean(y_true == y_pred),
         "f1": f1_score(y_true, y_pred, average=average),
@@ -243,8 +243,13 @@ def run_transfactor(df_train, target_train, df_val, target_val, df_test, target_
 
     return model, label_encoders, target_le, vocab
 
+
 def run_transfactor_no_blocks(df_train, target_train, df_val, target_val,
-                               df_test, target_test, batch_size=2, epochs=10):
+                               df_test, target_test, batch_size=2, epochs=10,
+                               selection_metric='loss'):
+    assert selection_metric in ['loss', 'accuracy', 'f1', 'roc_auc'], \
+        f"Invalid selection_metric: {selection_metric}"
+
     print(f"[INFO] Running Transfactor baseline with no blocks (1 token per value)")
 
     # Encode features
@@ -260,14 +265,15 @@ def run_transfactor_no_blocks(df_train, target_train, df_val, target_val,
     # Build vocab only
     vocab = build_vocab_from_label_encoders(label_encoders, restrict_to_cols=df_train_encoded.columns)
 
-    # === SKIP BLOCK MINING ===
-    block_defs = []  # empty = treat all columns as singleton/default blocks
+    # SKIP block mining → empty block_defs
+    block_defs = []
 
+    # Prepare datasets
     dataset_train = prepare_dataset(df_train_encoded, block_defs, target_labels_train, vocab)
     dataset_val = prepare_dataset(df_val_encoded, block_defs, target_labels_val, vocab)
     dataset_test = prepare_dataset(df_test_encoded, block_defs, target_labels_test, vocab)
 
-    pad_block_id = 0  # only null block id will be used
+    pad_block_id = 0  # only null block id used
     vocab_size = max(v for col in vocab.values() for v in col.values()) + 1
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -275,9 +281,10 @@ def run_transfactor_no_blocks(df_train, target_train, df_val, target_val,
     dataloader_val = create_dataloader(dataset_val, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
     dataloader_test = create_dataloader(dataset_test, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
 
+    # Initialize model
     model = Transfactor(
         vocab_size=vocab_size,
-        num_blocks=0,  # no real blocks
+        num_blocks=0,
         d_model=32,
         nhead=4,
         num_layers=2,
@@ -289,25 +296,45 @@ def run_transfactor_no_blocks(df_train, target_train, df_val, target_val,
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
     best_state = None
-    best_val_loss = float("inf")
+    best_val_score = float("inf") if selection_metric == "loss" else -float("inf")
     best_epoch = -1
 
     for epoch in range(epochs):
         print(f"\nEpoch {epoch + 1}")
         train_model(model, dataloader_train, criterion, optimizer, device=device, label="Train", train=True)
-        val_loss, val_acc = train_model(model, dataloader_val, criterion, optimizer=None, device=device, label="Val", train=False)
+        val_loss, val_acc, y_true, y_pred, y_prob = train_model(
+            model, dataloader_val, criterion, optimizer=None, device=device, label="Val", train=False
+        )
+        metrics = evaluate_metrics(y_true, y_pred, y_prob)
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        metric_value = {
+            "loss": val_loss,
+            "accuracy": metrics["accuracy"],
+            "f1": metrics["f1"],
+            "roc_auc": metrics["roc_auc"] if metrics["roc_auc"] is not None else -1
+        }[selection_metric]
+
+        print(f"[VAL] All Metrics: " + ", ".join(f"{k}={v:.4f}" for k, v in metrics.items() if v is not None))
+
+        is_better = metric_value < best_val_score if selection_metric == "loss" else metric_value > best_val_score
+
+        if is_better:
+            best_val_score = metric_value
             best_epoch = epoch
             best_state = copy.deepcopy(model.state_dict())
-            print(f"[BEST] New best model at epoch {epoch+1} with val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
+            print(f"[BEST] New best model at epoch {epoch+1} with {selection_metric}={metric_value:.4f}")
 
     if best_state is not None:
         model.load_state_dict(best_state)
         print(f"[INFO] Loaded best model from epoch {best_epoch + 1}")
 
     print("\nFinal evaluation on test set:")
-    test_model(model, dataloader_test, criterion, device=device)
+    _, _, y_true_test, y_pred_test, y_prob_test = test_model(model, dataloader_test, criterion, device=device)
+    test_metrics = evaluate_metrics(y_true_test, y_pred_test, y_prob_test)
+
+    print("[TEST METRICS]")
+    for k, v in test_metrics.items():
+        if v is not None:
+            print(f"  {k}: {v:.4f}")
 
     return model, label_encoders, target_le, vocab
