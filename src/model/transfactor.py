@@ -42,7 +42,7 @@ class Transfactor(nn.Module):
         self.col_transformer = nn.TransformerEncoder(encoder_layer_col, num_layers=num_layers)
 
         self.classifier = nn.Sequential(
-            nn.Linear(d_model, d_model),
+            nn.Linear(d_model * 2, d_model),
             nn.ReLU(),
             nn.Linear(d_model, num_classes)
         )
@@ -78,7 +78,7 @@ class Transfactor(nn.Module):
         col_out = self.col_transformer(row_out.transpose(0, 1)).transpose(0, 1)  # [B, T, D]
 
         # Combine views
-        combined = row_out + col_out  # [B, T, D]
+        combined = torch.cat([row_out, col_out], dim=-1)  # [B, T, 2*D]
 
         # Masked mean pooling
         mask = attention_mask.unsqueeze(-1)  # [B, T, 1]
