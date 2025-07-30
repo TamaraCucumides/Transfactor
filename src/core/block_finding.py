@@ -57,7 +57,6 @@ def find_non_overlapping_blocks(df, min_support=2, max_cols=4):
     return block_defs
 
 def fast_blocks_numpy(df, min_support=5, max_cols=3, max_blocks=None):
-
     used_rows = set()
     block_defs = []
     block_id = 0
@@ -77,7 +76,7 @@ def fast_blocks_numpy(df, min_support=5, max_cols=3, max_blocks=None):
         candidates = []
         total_combos = 0
 
-        for r in range(max_cols, 1, -1):
+        for r in range(max_cols, 0, -1):  # include r = 1 (1-column blocks)
             for cols in combinations(df.columns, r):
                 col_list = list(cols)
                 encoded_array = np.stack([encoded_df[col] for col in col_list], axis=1)
@@ -112,7 +111,8 @@ def fast_blocks_numpy(df, min_support=5, max_cols=3, max_blocks=None):
         if not candidates:
             break
 
-        candidates.sort(key=lambda x: (-len(x["columns"]), -x["support"]))
+        # ✅ Prioritize by area = support × number of columns
+        candidates.sort(key=lambda x: -(len(x["columns"]) * x["support"]))
         best = candidates[0]
 
         block_defs.append({
@@ -132,18 +132,18 @@ def fast_blocks_numpy(df, min_support=5, max_cols=3, max_blocks=None):
 
 
 
+
 if __name__ == "__main__":
         
     # Data from the user
     df = pd.DataFrame([
-        ["A", "B", "C", "X"],
-        ["A", "B", "C", "W"],
-        ["A", "B", "C", "Z"],
+        ["A", "B", "E", "X"],
+        ["A", "Y", "F", "W"],
+        ["A", "Z", "C", "Z"],
         ["C", "D", "D", "X"],
-        ["E", "D", "D", "X"],
+        ["C", "D", "C", "X"],
     ], columns=["c1", "c2", "c3", "c4"])
+    
+    blocks = fast_blocks_numpy(df, min_support=2, max_cols=3)
 
-    # Apply the function
-    results = find_non_overlapping_blocks(df, min_support=2, max_cols=4)
-
-    print(results)
+    print(blocks)
