@@ -212,8 +212,10 @@ def run_transfactor(df_train, target_train, df_val, target_val, df_test, target_
 
         print(f"[VAL] All Metrics: " + ", ".join(f"{k}={v:.4f}" for k, v in metrics.items() if v is not None))
 
-
-        is_better = (metric_value < best_val_score) if selection_metric == "loss" else (metric_value > best_val_score)
+        if selection_metric == "loss":
+            is_better = metric_value < best_val_score
+        else:
+            is_better = metric_value > best_val_score
 
         if is_better:
             best_val_score = metric_value
