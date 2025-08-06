@@ -149,7 +149,7 @@ def test_model(model, dataloader, criterion, device):
 # === Main Pipeline ===
 def run_transfactor(df_train, target_train, df_val, target_val, df_test, target_test,
                  min_support=10, max_cols=3, batch_size=2, epochs=10,
-                 selection_metric='loss'):
+                 selection_metric='loss', mix_type="concat"):
 
     raw_block_defs = fast_blocks_numpy(df_train, min_support=min_support, max_cols=max_cols)
     print(f"[INFO] Finished block mining with {len(raw_block_defs)} blocks")
@@ -173,11 +173,9 @@ def run_transfactor(df_train, target_train, df_val, target_val, df_test, target_
     num_blocks = len(block_defs)
     pad_block_id = num_blocks
 
-    print("[STEP] Creating dataloaders")
     dataloader_train = create_dataloader(dataset_train, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
     dataloader_val = create_dataloader(dataset_val, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
     dataloader_test = create_dataloader(dataset_test, batch_size, pad_token_id=0, pad_block_id=pad_block_id)
-    print("[INFO] Dataloaders ready")
 
     print("[STEP] Initializing model")
     vocab_size = max(v for col in vocab.values() for v in col.values()) + 1
@@ -190,7 +188,8 @@ def run_transfactor(df_train, target_train, df_val, target_val, df_test, target_
         nhead=4,
         num_layers=2,
         num_classes=len(set(target_labels_train)),
-        max_seq_len=100
+        max_seq_len=100,
+        mix_type=mix_type
     ).to(device)
 
     criterion = nn.CrossEntropyLoss()
